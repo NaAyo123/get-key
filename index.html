@@ -15,7 +15,7 @@
 <body>
 <div class="card">
     <h2>NAEXECUTOR KEY SYSTEM</h2>
-    <p id="status">Đang kiểm tra Key...</p>
+    <p id="status">Đang tạo Key...</p>
     <div id="keyDisplay" class="key-box" style="display:none;"></div>
     <button id="copyBtn" onclick="copyKey()" style="display:none;">Copy Key</button>
 </div>
@@ -27,39 +27,26 @@
     const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const urlParams = new URLSearchParams(window.location.search);
-    const userHwid = urlParams.get('hwid');
+    // Nếu Link4M làm mất HWID, tự động tạo HWID mặc định "GLOBAL_USER"
+    let userHwid = urlParams.get('hwid') || "GLOBAL_USER";
 
     async function processKey() {
-        if (!userHwid) {
-            document.getElementById('status').innerText = "Lỗi: Vui lòng mở link qua ứng dụng NaExecutor!";
-            document.getElementById('status').style.color = "#f87171";
-            return;
-        }
-
         const now = new Date().toISOString();
 
-        // Kiểm tra xem máy này đã có Key còn hạn sử dụng hay chưa
-        let { data: existingKeys } = await _supabase
-            .from('keys')
-            .select('*')
-            .eq('hwid', userHwid)
-            .gt('expires_at', now);
+        // Tạo mã Key ngẫu nhiên mới
+        const newKey = "NA-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+        
+        // Tính thời gian hết hạn: đúng +12h 36m 36s
+        const expDate = new Date(Date.now() + (12 * 3600 + 36 * 60 + 36) * 1000).toISOString();
 
-        if (existingKeys && existingKeys.length > 0) {
-            showKey(existingKeys[0].key_code);
-        } else {
-            // Tạo Key mới hạn dùng đúng +12h 36m 36s
-            const newKey = "NA-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-            const expDate = new Date(Date.now() + (12 * 3600 + 36 * 60 + 36) * 1000).toISOString();
+        // Lưu trực tiếp Key vào Supabase (để hwid là NULL để máy nào nhập cũng dùng được)
+        await _supabase.from('keys').insert([{ 
+            key_code: newKey, 
+            hwid: null,
+            expires_at: expDate 
+        }]);
 
-            await _supabase.from('keys').insert([{ 
-                key_code: newKey, 
-                hwid: userHwid,
-                expires_at: expDate 
-            }]);
-
-            showKey(newKey);
-        }
+        showKey(newKey);
     }
 
     function showKey(key) {
