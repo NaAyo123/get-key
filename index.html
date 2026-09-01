@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Lấy Key</title>
+    <!-- Thư viện Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #0f172a; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: #1e293b; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.5); width: 90%; max-width: 400px; }
+        h2 { color: #38bdf8; margin-bottom: 10px; }
+        .key-box { background: #0f172a; border: 2px dashed #38bdf8; padding: 15px; font-size: 18px; font-weight: bold; color: #4ade80; border-radius: 8px; margin: 20px 0; word-break: break-all; }
+        button { background: #38bdf8; border: none; padding: 10px 20px; font-size: 16px; font-weight: bold; color: #0f172a; border-radius: 6px; cursor: pointer; }
+        button:hover { background: #7dd3fc; }
+        .loading { color: #fbbf24; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>XÁC NHẬN LẤY KEY</h2>
+    <p id="status" class="loading">Đang kiểm tra thông tin thiết bị...</p>
+    <div id="keyDisplay" class="key-box" style="display: none;"></div>
+    <button id="copyBtn" onclick="copyKey()" style="display: none;">Copy Key</button>
+</div>
+
+<script>
+    // 1. ĐIỀN THÔNG TIN SUPABASE CỦA BẠN VÀO ĐÂY
+    const SUPABASE_URL = "https://palwsejnhgkpfruqrphv.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6..."; // Điền anon/public key
+
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Lấy HWID từ URL (Ví dụ: index.html?hwid=MOCK_HWID)
+    const urlParams = new URLSearchParams(window.location.search);
+    const userHwid = urlParams.get('hwid');
+
+    async function processKey() {
+        const statusEl = document.getElementById('status');
+        const keyDisplay = document.getElementById('keyDisplay');
+        const copyBtn = document.getElementById('copyBtn');
+
+        if (!userHwid) {
+            statusEl.innerText = "Lỗi: Mở link qua ứng dụng để lấy Key!";
+            statusEl.style.color = "#f87171";
+            return;
+        }
+
+        try {
+            // Kiểm tra xem HWID này đã có Key trong Database chưa
+            let { data: existingKeys, error } = await _supabase
+                .from('keys')
+                .select('*')
+                .eq('hwid', userHwid);
+
+            if (existingKeys && existingKeys.length > 0) {
+                // Đã có Key -> Hiển thị Key cũ
+                showKey(existingKeys[0].key_code);
+            } else {
+                // Chưa có Key -> Tạo Key mới duy nhất
+                const newKey = "KEY-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+
+                const { error: insertError } = await _supabase
+                    .from('keys')
+                    .insert([{ key_code: newKey, hwid: userHwid, is_used: true }]);
+
+                if (insertError) throw insertError;
+                showKey(newKey);
+            }
+        } catch (err) {
+            statusEl.innerText = "Có lỗi xảy ra, vui lòng thử lại!";
+            statusEl.style.color = "#f87171";
+            console.error(err);
+        }
+    }
+
+    function showKey(key) {
+        document.getElementById('status').innerText = "Key của bạn là:";
+        document.getElementById('status').style.color = "#fff";
+        const keyDisplay = document.getElementById('keyDisplay');
+        keyDisplay.innerText = key;
+        keyDisplay.style.display = "block";
+        document.getElementById('copyBtn').style.display = "inline-block";
+    }
+
+    function copyKey() {
+        const keyText = document.getElementById('keyDisplay').innerText;
+        navigator.clipboard.writeText(keyText);
+        alert("Đã sao chép Key!");
+    }
+
+    processKey();
+</script>
+</body>
+</html>
